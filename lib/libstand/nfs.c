@@ -195,6 +195,9 @@ nfs_getrootfh(struct iodesc *d, char *path, u_char *fhp)
 	    args, len, repl, sizeof(*repl));
 	if (cc == -1) {
 		/* errno was set by rpc_call */
+		/* XXX Check if the remote protocol supports RPC mount protocol v3
+		 * that is used in NFS v3.
+		 */
 		return (errno);
 	}
 	if (cc < 4)

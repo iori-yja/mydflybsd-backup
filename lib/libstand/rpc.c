@@ -125,6 +125,7 @@ rpc_call(struct iodesc *d, n_long prog, n_long vers, n_long proc, void *sdata,
 	char *recv_head, *recv_tail;
 	n_long x;
 	int port;	/* host order */
+	int high, low; /* remote version */
 
 #ifdef RPC_DEBUG
 	if (debug)
@@ -217,12 +218,30 @@ rpc_call(struct iodesc *d, n_long prog, n_long vers, n_long proc, void *sdata,
 		return(-1);
 	}
 	x = ntohl(reply->rp_u.rpu_rok.rok_status);
+	recv_head += sizeof(*reply);
+
 	if (x != 0) {
-		printf("callrpc: error = %ld\n", (long)x);
-		errno = EBADRPC;
+		/* Even if the message was accepted, there can be some
+		 * reasons to fail with a call.
+		 * One of possible causes is version mismatch, because of
+		 * several NFS implementations (or packages) which do not
+		 * accept older protocol by default, for example.
+		 */
+		if (x == RPC_PROGMISMATCH) {
+			low = *(int32_t *) recv_head
+			high = *((int32_t *) recv_head + 1)
+			printf("callrpc: version mismatch. We sent: %ld, Remote: %ld-%ld\n", (long)x, low, high);
+			errno = RPC_PROGMISMATCH;
+			/*
+			 * The version information of remote server is written in the buffer,
+			 * but the size is defined in the protocol. So here return -1 to indicate an error.
+			 */
+		} else {
+			printf("callrpc: error = %ld\n", (long)x);
+			errno = EBADRPC;
+		}
 		return(-1);
 	}
-	recv_head += sizeof(*reply);
 
 	return (ssize_t)(recv_tail - recv_head);
 }
